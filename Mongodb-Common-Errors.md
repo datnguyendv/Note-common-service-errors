@@ -1,123 +1,228 @@
-# Common MongoDB Issues (Standalone, ReplicaSet, Sharded Cluster): Troubleshooting, Commands, and Fixes
+# MongoDB Troubleshooting Guide: Standalone, Replica Set, Sharded Cluster
 
-This guide describes frequent MongoDB errors, how to troubleshoot and resolve them, and includes relevant CLI commands for SRE/DevOps cases.
+## Table of Contents
+
+- [1. Standalone Deployment](#1-standalone-deployment)
+- [2. Replica Set Deployment](#2-replica-set-deployment)
+- [3. Sharded Cluster Deployment](#3-sharded-cluster-deployment)
+- [4. Reference: Essential Health Check Bash Scripts](#4-reference-essential-health-check-bash-scripts)
+- [5. Key Monitoring & Alerting Points](#5-key-monitoring--alerting-points)
+- [6. References](#6-references)
 
 ---
 
 ## 1. Standalone Deployment
 
-**Typical Use:** Development, small/POC setups, single non-redundant server.
+**Typical Use:** Development, testing, single-node PoC systems.
 
-## Common Incidents
+### Common Incidents
 
-## 1.1 MongoDB Process Down
+#### 1.1 MongoDB Process Down
 
-- **Symptoms:** Application cannot connect, "connection refused."
-- bashsystemctl status mongodtail -f /var/log/mongodb/mongod.logps aux | grep mongod
+- **Symptoms:** Application cannot connect, "connection refused".
+- **Actions:**
 
-## 1.2 Out of Disk Space
+  ```
+  systemctl status mongod
+  tail -f /var/log/mongodb/mongod.log
+  ps aux | grep mongod
+  ```
 
-- **Symptoms:** Write errors, "No space left on device."
-- bashdf -hdu -sh /var/lib/mongodb/\*rm -rf /var/log/mongodb/\*.log-old # Clear old logs with care!
+#### 1.2 Out of Disk Space
 
-## 1.3 Authentication or Permission Issues
+- **Symptoms:** Write errors, "No space left on device".
+- **Actions:**
 
-- **Symptoms:** Authentication failed errors, cannot connect.
-- bashmongo -u admin -p --authenticationDatabase admingrep "security:" /etc/mongod.confls -l /var/lib/mongodb/chown -R mongodb:mongodb /var/lib/mongodb
+  ```
+  df -h
+  du -sh /var/lib/mongodb/*
+  rm -rf /var/log/mongodb/*.log-old    # Be careful when removing!
+  ```
 
-## 1.4 Corrupted Data Files
+#### 1.3 Authentication or Permission Issues
 
-- **Symptoms:** Mongod won't start, “data corruption” logs.
-- bashrm /var/lib/mongodb/mongod.lockmongod --repair --dbpath /var/lib/mongodb
+- **Symptoms:** "Authentication failed" errors, cannot connect.
+- **Actions:**
 
-## 2. Replica Set Deployment (RS)
+  ```
+  mongo -u admin -p --authenticationDatabase admin
+  grep "security:" /etc/mongod.conf
+  ls -l /var/lib/mongodb/
+  chown -R mongodb:mongodb /var/lib/mongodb
+  ```
 
-**Typical Use:** Production systems needing high availability.
+#### 1.4 Data Corruption, mongod Won't Start
 
-## Common Incidents
+- **Symptoms:** mongod process exits, "corruption" in log.
+- **Actions:**
 
-## 2.1 Primary Election Issues
+  ```
+  rm /var/lib/mongodb/mongod.lock
+  mongod --repair --dbpath /var/lib/mongodb
+  ```
 
-- **Symptoms:** No primary, writes rejected by secondaries (not writable).
-- bashmongo --eval "rs.status()"mongo --eval "rs.isMaster()"
+---
 
-## 2.2 Secondary Node Outage or Lag
+## 2. Replica Set Deployment
 
-- **Symptoms:** Secondary missing or lagging, alerts on lag.
-- bashmongo --eval "rs.status()"mongo --eval "rs.printSlaveReplicationInfo()"
+**Typical Use:** Production environments requiring high availability.
 
-## 2.3 Replication Broken (Rollback)
+### Common Incidents
 
-- **Symptoms:** "Rollback" logs, inconsistent data upon node rejoin.
-- bashmongo --eval "rs.status()"# Consider re-syncing node from scratch
+#### 2.1 Primary Election Problems
 
-## 2.4 Oplog or Disk Full
+- **Symptoms:** No primary present, writes rejected.
+- **Actions:**
 
-- **Symptoms:** "oplog out of sync", replication stops.
-- bashdf -hmongo --eval "db.getReplicationInfo()"
+  ```
+  mongo --eval "rs.status()"
+  mongo --eval "rs.isMaster()"
+  ```
 
-## 2.5 Split Brain (Partitioned Replica Set)
+#### 2.2 Secondary Node Outage or Lag
 
-- **Symptoms:** Multiple primaries (rare), or long period without primary.
-- bashmongo --eval "rs.status()"# Fix network partition, consider reconfig with force if quorum lost:mongo --eval "rs.reconfig(cfg, {force: true})"
+- **Symptoms:** Secondary node missing or lagging.
+- **Actions:**
+
+  ```
+  mongo --eval "rs.status()"
+  mongo --eval "rs.printSlaveReplicationInfo()"
+  ```
+
+#### 2.3 Replication Broken / Rollback
+
+- **Symptoms:** Replication errors, inconsistent data after downtime.
+- **Actions:**
+
+  ```
+  mongo --eval "rs.status()"
+  # Re-sync failed secondary if needed
+  ```
+
+#### 2.4 Oplog or Disk Full
+
+- **Symptoms:** Replication stops, out of sync.
+- **Actions:**
+
+  ```
+  df -h
+  mongo --eval "db.getReplicationInfo()"
+  ```
+
+#### 2.5 Split Brain (Partitioned Replica Set)
+
+- **Symptoms:** Multiple primaries, or long periods with no primary.
+- **Actions:**
+
+  ```
+  mongo --eval "rs.status()"
+  # After resolving partition
+  mongo --eval "rs.reconfig(cfg, {force: true})"
+  ```
+
+---
 
 ## 3. Sharded Cluster Deployment
 
-**Typical Use:** Horizontal scaling for very large datasets/high throughput.
+**Typical Use:** Large scale, high throughput, horizontal scalability.
 
-## Architecture
+### Architecture
 
-Plain textANTLR4BashCC#CSSCoffeeScriptCMakeDartDjangoDockerEJSErlangGitGoGraphQLGroovyHTMLJavaJavaScriptJSONJSXKotlinLaTeXLessLuaMakefileMarkdownMATLABMarkupObjective-CPerlPHPPowerShell.propertiesProtocol BuffersPythonRRubySass (Sass)Sass (Scss)SchemeSQLShellSwiftSVGTSXTypeScriptWebAssemblyYAMLXML`text[ mongos ] → [ config servers (CSRS) ] → [ shard replica sets ]`
+```
+[mongos] --> [config servers (CSRS)] --> [sharded replica sets]
+```
 
-## Common Incidents
+### Common Incidents
 
-## 3.1 Config Servers Down
+#### 3.1 Config Servers Down
 
-- **Symptoms:** All sharding operations and metadata updates fail, cluster “frozen.”
-- bashmongo --port 27019 --eval "rs.status()"tail -f /var/log/mongodb/configsvr.logmongo --port 27017 --eval "sh.status()"
-- **Actions:** Restore config server majority, force reconfig if needed.
+- **Symptoms:** Sharding/metadata operations fail.
+- **Checks:**
 
-## 3.2 Mongos Router Failures
+  ```
+  mongo --port 27019 --eval "rs.status()"
+  tail -f /var/log/mongodb/configsvr.log
+  mongo --port 27017 --eval "sh.status()"
+  ```
 
-- **Symptoms:** Application cannot connect, route errors ("no primary found").
-- bashsystemctl status mongosmongo --port 27017 --eval "db.adminCommand('ismaster')"db.adminCommand('listShards')
-- **Actions:** Restart mongos, synchronize with config servers, check networking.
+- **Actions:** Restore majority, force reconfig if needed.
 
-## 3.3 Shard or RS Down
+#### 3.2 Mongos Router Failure
 
-- **Symptoms:** Data range is inaccessible, chunk errors in sh.status().
-- bashmongo --port 27018 --eval "rs.status()"mongo --port 27017 --eval "sh.status()"
-- **Actions:** Restore failed nodes, migrate chunks before removing any failed shard.
+- **Symptoms:** Cannot connect, "no primary found".
+- **Actions:**
 
-## 3.4 Balancer and Chunk Issues
+  ```
+  systemctl status mongos
+  mongo --port 27017 --eval "db.adminCommand('ismaster')"
+  ```
 
-- **Symptoms:** Write/read hotspots, chunk move failures, jumbo chunk warnings.
-- bashmongo --port 27017 --eval "sh.getBalancerState()"db.getSiblingDB('config').chunks.aggregate(\[{$group: {\_id: '$shard', count: {$sum: 1}}}, {$sort: {count: -1}}\])mongo --port 27017 config --eval "db.chunks.find({jumbo: true})"
-- **Actions:** Enable/disable balancer, split or refine shard keys, manual chunk moves.
+#### 3.3 Shard or Replica Set Down
 
-## 3.5 Cross-Shard Query or Index Issues
+- **Symptoms:** Data is unavailable, chunk errors in `sh.status()`.
+- **Checks:**
 
-- **Symptoms:** Slow aggregations, high cluster CPU/network.
-- **Actions:** Review indices, make sure queries target shard key, use .explain().
+  ```
+  mongo --port 27018 --eval "rs.status()"
+  mongo --port 27017 --eval "sh.status()"
+  ```
+
+#### 3.4 Balancer and Chunk Issues
+
+- **Symptoms:** Imbalanced data, chunk move failures.
+- **Checks:**
+
+  ```
+  mongo --port 27017 --eval "sh.getBalancerState()"
+  mongo --port 27017 --eval "db.getSiblingDB('config').chunks.aggregate([{ $group: {_id: '$shard', count: {$sum: 1}} }, { $sort: {count: -1} }])"
+  mongo --port 27017 config --eval "db.chunks.find({jumbo: true})"
+  ```
+
+#### 3.5 Cross-Shard Query or Index Issues
+
+- **Symptoms:** Slow aggregations, cluster performance drops.
+- **Actions:** Review indexes and queries, ensure they use the shard key.
+
+---
 
 ## 4. Reference: Essential Health Check Bash Scripts
 
-## 4.1 Standalone
+### 4.1 Standalone
 
-Plain textANTLR4BashCC#CSSCoffeeScriptCMakeDartDjangoDockerEJSErlangGitGoGraphQLGroovyHTMLJavaJavaScriptJSONJSXKotlinLaTeXLessLuaMakefileMarkdownMATLABMarkupObjective-CPerlPHPPowerShell.propertiesProtocol BuffersPythonRRubySass (Sass)Sass (Scss)SchemeSQLShellSwiftSVGTSXTypeScriptWebAssemblyYAMLXML`bashsystemctl status mongod  mongo --eval "db.runCommand({serverStatus:1})"  df -h  free -h`
+```
+systemctl status mongod
+mongo --eval "db.runCommand({serverStatus:1})"
+df -h
+free -h
+```
 
-## 4.2 Replica Set
+### 4.2 Replica Set
 
-Plain textANTLR4BashCC#CSSCoffeeScriptCMakeDartDjangoDockerEJSErlangGitGoGraphQLGroovyHTMLJavaJavaScriptJSONJSXKotlinLaTeXLessLuaMakefileMarkdownMATLABMarkupObjective-CPerlPHPPowerShell.propertiesProtocol BuffersPythonRRubySass (Sass)Sass (Scss)SchemeSQLShellSwiftSVGTSXTypeScriptWebAssemblyYAMLXML`bashmongo --eval "rs.status()"  mongo --eval "rs.printSlaveReplicationInfo()"  df -h`
+```
+mongo --eval "rs.status()"
+mongo --eval "rs.printSlaveReplicationInfo()"
+df -h
+```
 
-## 4.3 Sharded Cluster
+### 4.3 Sharded Cluster
 
-Plain textANTLR4BashCC#CSSCoffeeScriptCMakeDartDjangoDockerEJSErlangGitGoGraphQLGroovyHTMLJavaJavaScriptJSONJSXKotlinLaTeXLessLuaMakefileMarkdownMATLABMarkupObjective-CPerlPHPPowerShell.propertiesProtocol BuffersPythonRRubySass (Sass)Sass (Scss)SchemeSQLShellSwiftSVGTSXTypeScriptWebAssemblyYAMLXML`bashmongo --port 27017 --eval "sh.status()"  mongo --port 27017 --eval "sh.getBalancerState()"  mongo --port 27019 --eval "rs.status()"   # Config server RS status  for SHARD in shard1-primary:27018 shard2-primary:27018; do    mongo $SHARD --eval "rs.status()"  done`
+```
+mongo --port 27017 --eval "sh.status()"
+mongo --port 27017 --eval "sh.getBalancerState()"
+mongo --port 27019 --eval "rs.status()" # Config server status
+for SHARD in shard1-primary:27018 shard2-primary:27018; do
+mongo $SHARD --eval "rs.status()"
+done
+```
+
+---
 
 ## 5. Key Monitoring & Alerting Points
 
-- **Standalone:** Process down, disk full, memory high, slow queries.
-- **Replica Set:** No primary, replication lag, node down, Oplog size/disk full.
-- **Sharded Cluster:** Config server down, unbalanced shards/chunks, mongos down, balancer off, jumbo chunk counts, orphaned data.
+- **Standalone:** mongod down, disk/memory full, slow queries.
+- **Replica Set:** Primary lost, lagging secondary, oplog/disk full, node unreachable.
+- **Sharded Cluster:** Config server unavailable, chunk imbalance, mongos down, balancer off, jumbo chunk presence.
 
-**Tip:** Always script your cluster health-checks and practice failover in a test environment to avoid surprises during critical incidents.
+---
+
+**Tip:** Automate health checks and failover testing. Regular monitoring and documented runbooks prevent most emergencies!
