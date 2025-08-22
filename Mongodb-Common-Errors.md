@@ -1,5 +1,7 @@
 # MongoDB Troubleshooting Guide: Standalone, Replica Set, Sharded Cluster
 
+This guide describes frequent MongoDB errors, how to troubleshoot and resolve them, and includes relevant CLI commands for SRE/DevOps cases.
+
 ---
 
 ## 1. Standalone Deployment
