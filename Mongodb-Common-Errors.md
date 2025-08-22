@@ -1,14 +1,5 @@
 # MongoDB Troubleshooting Guide: Standalone, Replica Set, Sharded Cluster
 
-## Table of Contents
-
-- [1. Standalone Deployment](#1-standalone-deployment)
-- [2. Replica Set Deployment](#2-replica-set-deployment)
-- [3. Sharded Cluster Deployment](#3-sharded-cluster-deployment)
-- [4. Reference: Essential Health Check Bash Scripts](#4-reference-essential-health-check-bash-scripts)
-- [5. Key Monitoring & Alerting Points](#5-key-monitoring--alerting-points)
-- [6. References](#6-references)
-
 ---
 
 ## 1. Standalone Deployment
