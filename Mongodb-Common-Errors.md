@@ -1,3 +1,9 @@
+# Common MongoDB Issues (Standalone, ReplicaSet, Sharded Cluster): Troubleshooting, Commands, and Fixes
+
+This guide describes frequent MongoDB errors, how to troubleshoot and resolve them, and includes relevant CLI commands for SRE/DevOps cases.
+
+---
+
 ## 1. Standalone Deployment
 
 **Typical Use:** Development, small/POC setups, single non-redundant server.
